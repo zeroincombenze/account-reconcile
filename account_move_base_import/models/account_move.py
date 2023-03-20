@@ -3,18 +3,19 @@
 # Copyright 2013 Savoir-faire Linux
 # Copyright 2014 ACSONE SA/NV
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl.html)
-import logging
-import sys
 import traceback
+import sys
+import logging
 
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
+
 
 _logger = logging.getLogger(__name__)
 
 
 class ErrorTooManyPartner(Exception):
-    """New Exception definition that is raised when more than one partner is
+    """ New Exception definition that is raised when more than one partner is
     matched by the completion rule.
     """
 
@@ -37,81 +38,68 @@ class AccountMoveCompletionRule(models.Model):
     process. The reference should contain the invoice number or the SO number
     or any reference that will be matched by the invoice accounting move.
     """
-
     _name = "account.move.completion.rule"
     _order = "sequence asc"
     _description = "Account move completion method"
 
-    sequence = fields.Integer(string="Sequence", help="Lower means parsed first.")
-    name = fields.Char(string="Name")
+    sequence = fields.Integer(
+        string='Sequence',
+        help="Lower means parsed first.")
+    name = fields.Char(
+        string='Name')
     journal_ids = fields.Many2many(
-        comodel_name="account.journal",
-        relation="account_journal_completion_rule_rel",
-        string="Related journals",
-    )
-    function_to_call = fields.Selection(
-        [
-            (
-                "get_from_name_and_invoice",
-                "From line name (based on customer invoice number)",
-            ),
-            (
-                "get_from_name_and_supplier_invoice",
-                "From line name (based on supplier invoice number)",
-            ),
-            (
-                "get_from_name_and_partner_field",
-                "From line name (based on partner field)",
-            ),
-            (
-                "get_from_name_and_partner_name",
-                "From line name (based on partner name)",
-            ),
-        ],
-        string="Method",
+        comodel_name='account.journal',
+        relation='account_journal_completion_rule_rel',
+        string='Related journals')
+    function_to_call = fields.Selection([
+        ('get_from_name_and_invoice',
+            'From line name (based on customer invoice number)'),
+        ('get_from_name_and_supplier_invoice',
+            'From line name (based on supplier invoice number)'),
+        ('get_from_name_and_partner_field',
+            'From line name (based on partner field)'),
+        ('get_from_name_and_partner_name',
+            'From line name (based on partner name)')
+    ], string='Method'
     )
 
     def _find_invoice(self, line, inv_type):
         """Find invoice related to statement line"""
-        inv_obj = self.env["account.move"]
-        if inv_type == "supplier":
-            type_domain = ("in_invoice", "in_refund")
-            number_field = "ref"
-        elif inv_type == "customer":
-            type_domain = ("out_invoice", "out_refund")
-            number_field = "name"
+        inv_obj = self.env['account.invoice']
+        if inv_type == 'supplier':
+            type_domain = ('in_invoice', 'in_refund')
+            number_field = 'reference'
+        elif inv_type == 'customer':
+            type_domain = ('out_invoice', 'out_refund')
+            number_field = 'number'
         else:
             raise ValidationError(
-                _("Invalid invoice type for completion: %s") % inv_type
-            )
+                _('Invalid invoice type for completion: %s') % inv_type)
 
-        invoices = inv_obj.search(
-            [(number_field, "=", line.name.strip()), ("move_type", "in", type_domain)]
-        )
+        invoices = inv_obj.search([(number_field, '=', line.name.strip()),
+                                   ('type', 'in', type_domain)])
         if invoices:
             if len(invoices) == 1:
                 return invoices
             else:
                 raise ErrorTooManyPartner(
-                    _(
-                        'Line named "%s" was matched by more than one '
-                        "partner while looking on %s invoices"
-                    )
-                    % (line.name, inv_type)
-                )
+                    _('Line named "%s" was matched by more than one '
+                      'partner while looking on %s invoices') %
+                    (line.name, inv_type))
         return False
 
     def _from_invoice(self, line, inv_type):
         """Populate statement line values"""
-        if inv_type not in ("supplier", "customer"):
+        if inv_type not in ('supplier', 'customer'):
             raise ValidationError(
-                _("Invalid invoice type for completion: %s") % inv_type
-            )
+                _('Invalid invoice type for completion: %s') %
+                inv_type)
         res = {}
         invoice = self._find_invoice(line, inv_type)
         if invoice:
             partner_id = invoice.commercial_partner_id.id
-            res = {"partner_id": partner_id}
+            res = {'partner_id': partner_id,
+                   'account_id': invoice.account_id.id}
         return res
 
     # Should be private but data are initialised with no update XML
@@ -129,7 +117,7 @@ class AccountMoveCompletionRule(models.Model):
             'account_id': value,
             ...}
         """
-        return self._from_invoice(line, "supplier")
+        return self._from_invoice(line, 'supplier')
 
     # Should be private but data are initialised with no update XML
     def get_from_name_and_invoice(self, line):
@@ -146,7 +134,7 @@ class AccountMoveCompletionRule(models.Model):
             'account_id': value,
             ...}
         """
-        return self._from_invoice(line, "customer")
+        return self._from_invoice(line, 'customer')
 
     # Should be private but data are initialised with no update XML
     def get_from_name_and_partner_field(self, line):
@@ -165,23 +153,23 @@ class AccountMoveCompletionRule(models.Model):
             'account_id': value,
 
             ...}
-        """
+            """
         res = {}
-        partner_obj = self.env["res.partner"]
+        partner_obj = self.env['res.partner']
         or_regex = ".*;? *%s *;?.*" % line.name
-        self.env["res.partner"].flush(["bank_statement_label"])
-        sql = "SELECT id from res_partner" " WHERE bank_statement_label ~* %s"
-        self.env.cr.execute(sql, (or_regex,))
+        sql = ("SELECT id from res_partner"
+               " WHERE bank_statement_label ~* %s")
+        self.env.cr.execute(sql, (or_regex, ))
         partner_ids = self.env.cr.fetchall()
         partners = partner_obj.browse([x[0] for x in partner_ids])
         if partners:
             if len(partners) > 1:
-                msg = _(
-                    'Line named "%s" was matched by more than '
-                    "one partner while looking on partner label: %s"
-                ) % (line.name, ",".join([x.name for x in partners]))
+                msg = (_('Line named "%s" was matched by more than '
+                         'one partner while looking on partner label: %s') %
+                        (line.name,
+                         ','.join([x.name for x in partners])))
                 raise ErrorTooManyPartner(msg)
-            res["partner_id"] = partners[0].id
+            res['partner_id'] = partners[0].id
         return res
 
     def get_from_name_and_partner_name(self, line):
@@ -198,7 +186,7 @@ class AccountMoveCompletionRule(models.Model):
             'account_id': value,
 
             ...}
-        """
+            """
         res = {}
         # The regexp_replace() escapes the name to avoid false positive
         # example: 'John J. Doe (No 1)' is escaped to 'John J\. Doe \(No 1\)'
@@ -208,7 +196,6 @@ class AccountMoveCompletionRule(models.Model):
         # to:
         #  http://www.postgresql.org/docs/9.0/static/functions-matching.html
         # in chapter 9.7.3.6. Limits and Compatibility
-        self.env["res.partner"].flush(["name"])
         sql = r"""
         SELECT id FROM (
             SELECT id,
@@ -223,13 +210,10 @@ class AccountMoveCompletionRule(models.Model):
         if result:
             if len(result) > 1:
                 raise ErrorTooManyPartner(
-                    _(
-                        'Line named "%s" was matched by more than one '
-                        "partner while looking on partner by name"
-                    )
-                    % line.name
-                )
-            res["partner_id"] = result[0][0]
+                    _('Line named "%s" was matched by more than one '
+                      'partner while looking on partner by name') %
+                    line.name)
+            res['partner_id'] = result[0][0]
         return res
 
 
@@ -243,16 +227,14 @@ class AccountMoveLine(models.Model):
     Have a look in account_move_base_import module to see how we've done
     it.
     """
-
     _inherit = "account.move.line"
-    _order = "already_completed desc, date asc, id"
+    _order = "already_completed desc, date asc"
 
     already_completed = fields.Boolean(
         string="Auto-Completed",
         default=False,
         help="When this checkbox is ticked, the auto-completion "
-        "process/button will ignore this line.",
-    )
+        "process/button will ignore this line.")
 
     def _get_line_values_from_rules(self):
         """We'll try to find out the values related to the line based on rules
@@ -286,11 +268,12 @@ class AccountMoveLine(models.Model):
         rules = self.journal_id.rule_ids
         for rule in rules:
             method_to_call = getattr(
-                self.env["account.move.completion.rule"], rule.function_to_call
+                self.env['account.move.completion.rule'],
+                rule.function_to_call
             )
             result = method_to_call(self)
             if result:
-                result["already_completed"] = True
+                result['already_completed'] = True
                 return result
         return None
 
@@ -299,17 +282,17 @@ class AccountMove(models.Model):
     """We add a basic button and stuff to support the auto-completion
     of the bank statement once line have been imported or manually fulfill.
     """
-
-    _name = "account.move"
-    _inherit = ["account.move", "mail.thread"]
+    _name = 'account.move'
+    _inherit = ['account.move', 'mail.thread']
 
     used_for_completion = fields.Boolean(
-        related="journal_id.used_for_completion", readonly=True
-    )
-    completion_logs = fields.Text(string="Completion Log", readonly=True)
-    import_partner_id = fields.Many2one("res.partner", string="Partner from import")
+        related='journal_id.used_for_completion',
+        readonly=True)
+    completion_logs = fields.Text(string='Completion Log', readonly=True)
+    import_partner_id = fields.Many2one('res.partner',
+                                        string="Partner from import")
 
-    @api.depends("line_ids.partner_id", "import_partner_id")
+    @api.depends('line_ids.partner_id', 'import_partner_id')
     def _compute_partner_id(self):
         for move in self:
             if move.import_partner_id:
@@ -331,28 +314,18 @@ class AccountMove(models.Model):
         number_line = len(self.line_ids)
         log = self.completion_logs or ""
         completion_date = fields.Datetime.now()
-        message = _(
-            "%s Account Move %s has %s/%s lines completed by " "%s \n%s\n%s\n"
-        ) % (
-            completion_date,
-            self.name,
-            number_imported,
-            number_line,
-            user_name,
-            error_msg,
-            log,
-        )
-        self.write({"completion_logs": message})
+        message = (_("%s Account Move %s has %s/%s lines completed by "
+                     "%s \n%s\n%s\n") % (completion_date, self.name,
+                                         number_imported, number_line,
+                                         user_name, error_msg, log))
+        self.write({'completion_logs': message})
 
-        body = (
-            (
-                _("Statement ID %s auto-completed for %s/%s lines completed")
-                % (self.name, number_imported, number_line)
-            ),
-        )
+        body = (_('Statement ID %s auto-completed for %s/%s lines completed') %
+                (self.name, number_imported, number_line)),
         self.message_post(body=body)
         return True
 
+    @api.multi
     def button_auto_completion(self):
         """Complete line with values given by rules and tic the
         already_completed checkbox so we won't compute them again unless the
@@ -372,11 +345,9 @@ class AccountMove(models.Model):
                 except Exception as exc:
                     msg_lines.append(repr(exc))
                     error_type, error_value, trbk = sys.exc_info()
-                    st = "Error: {}\nDescription: {}\nTraceback:".format(
-                        error_type.__name__,
-                        error_value,
-                    )
-                    st += "".join(traceback.format_tb(trbk, 30))
+                    st = "Error: %s\nDescription: %s\nTraceback:" % (
+                        error_type.__name__, error_value)
+                    st += ''.join(traceback.format_tb(trbk, 30))
                     _logger.error(st)
                 if res:
                     try:
@@ -384,16 +355,10 @@ class AccountMove(models.Model):
                     except Exception as exc:
                         msg_lines.append(repr(exc))
                         error_type, error_value, trbk = sys.exc_info()
-                        st = "Error: {}\nDescription: {}\nTraceback:".format(
-                            error_type.__name__,
-                            error_value,
-                        )
-                        st += "".join(traceback.format_tb(trbk, 30))
+                        st = "Error: %s\nDescription: %s\nTraceback:" % (
+                            error_type.__name__, error_value)
+                        st += ''.join(traceback.format_tb(trbk, 30))
                         _logger.error(st)
-            msg = "\n".join(msg_lines)
-            move.write_completion_log(msg, compl_lines)
-            if move.journal_id.autovalidate_completed_move and all(
-                [line.already_completed for line in move.line_ids]
-            ):
-                move._post()
+            msg = '\n'.join(msg_lines)
+            self.write_completion_log(msg, compl_lines)
         return True

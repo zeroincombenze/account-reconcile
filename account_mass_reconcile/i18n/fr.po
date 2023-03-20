@@ -19,7 +19,7 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
 
 #. module: account_mass_reconcile
-#: code:addons/account_mass_reconcile/models/base_advanced_reconciliation.py:0
+#: code:addons/account_mass_reconcile/models/base_advanced_reconciliation.py:157
 #, python-format
 msgid ""
 "A matcher %s is compared with a matcher %s, the _matchers and "
@@ -59,11 +59,6 @@ msgstr "Compte"
 #: model:ir.model.fields,field_description:account_mass_reconcile.field_mass_reconcile_simple_reference__account_lost_id
 msgid "Account Lost"
 msgstr "Compte de pertes"
-
-#. module: account_mass_reconcile
-#: model:ir.model,name:account_mass_reconcile.model_account_mass_reconcile
-msgid "Account Mass Reconcile"
-msgstr ""
 
 #. module: account_mass_reconcile
 #: model:ir.model.fields,field_description:account_mass_reconcile.field_account_mass_reconcile_method__account_profit_id
@@ -113,7 +108,7 @@ msgid "Automatic Mass Reconcile Method"
 msgstr "Méthode de lettrage automatisé"
 
 #. module: account_mass_reconcile
-#: code:addons/account_mass_reconcile/models/base_reconciliation.py:0
+#: code:addons/account_mass_reconcile/models/base_reconciliation.py:160
 #, python-format
 msgid "Automatic Write Off"
 msgstr ""
@@ -318,14 +313,17 @@ msgid "ID"
 msgstr "ID"
 
 #. module: account_mass_reconcile
-#: model:ir.model.fields,help:account_mass_reconcile.field_account_mass_reconcile__message_needaction
 #: model:ir.model.fields,help:account_mass_reconcile.field_account_mass_reconcile__message_unread
+msgid "If checked new messages require your attention."
+msgstr ""
+
+#. module: account_mass_reconcile
+#: model:ir.model.fields,help:account_mass_reconcile.field_account_mass_reconcile__message_needaction
 msgid "If checked, new messages require your attention."
 msgstr ""
 
 #. module: account_mass_reconcile
 #: model:ir.model.fields,help:account_mass_reconcile.field_account_mass_reconcile__message_has_error
-#: model:ir.model.fields,help:account_mass_reconcile.field_account_mass_reconcile__message_has_sms_error
 msgid "If checked, some messages have a delivery error."
 msgstr ""
 
@@ -430,41 +428,6 @@ msgid "Mass Automatic Reconcile History"
 msgstr "Lettrage automatisé"
 
 #. module: account_mass_reconcile
-#: model:ir.model,name:account_mass_reconcile.model_mass_reconcile_advanced
-msgid "Mass Reconcile Advanced"
-msgstr ""
-
-#. module: account_mass_reconcile
-#: model:ir.model,name:account_mass_reconcile.model_mass_reconcile_advanced_ref
-msgid "Mass Reconcile Advanced Ref"
-msgstr ""
-
-#. module: account_mass_reconcile
-#: model:ir.model,name:account_mass_reconcile.model_mass_reconcile_base
-msgid "Mass Reconcile Base"
-msgstr ""
-
-#. module: account_mass_reconcile
-#: model:ir.model,name:account_mass_reconcile.model_mass_reconcile_simple
-msgid "Mass Reconcile Simple"
-msgstr ""
-
-#. module: account_mass_reconcile
-#: model:ir.model,name:account_mass_reconcile.model_mass_reconcile_simple_name
-msgid "Mass Reconcile Simple Name"
-msgstr ""
-
-#. module: account_mass_reconcile
-#: model:ir.model,name:account_mass_reconcile.model_mass_reconcile_simple_partner
-msgid "Mass Reconcile Simple Partner"
-msgstr ""
-
-#. module: account_mass_reconcile
-#: model:ir.model,name:account_mass_reconcile.model_mass_reconcile_simple_reference
-msgid "Mass Reconcile Simple Reference"
-msgstr ""
-
-#. module: account_mass_reconcile
 #: model_terms:ir.ui.view,arch_db:account_mass_reconcile.account_mass_reconcile_form
 #, fuzzy
 msgid ""
@@ -534,7 +497,7 @@ msgstr ""
 
 #. module: account_mass_reconcile
 #: model:ir.model.fields,field_description:account_mass_reconcile.field_account_mass_reconcile__message_has_error_counter
-msgid "Number of errors"
+msgid "Number of error"
 msgstr ""
 
 #. module: account_mass_reconcile
@@ -564,11 +527,6 @@ msgid "Profile Information"
 msgstr "Information sur le profil"
 
 #. module: account_mass_reconcile
-#: model:ir.model,name:account_mass_reconcile.model_account_mass_reconcile_method
-msgid "Reconcile Method for account_mass_reconcile"
-msgstr ""
-
-#. module: account_mass_reconcile
 #: model:ir.model.fields,field_description:account_mass_reconcile.field_mass_reconcile_history__mass_reconcile_id
 msgid "Reconcile Profile"
 msgstr "Profil de réconciliation"
@@ -584,7 +542,7 @@ msgid "Reconciliation"
 msgstr ""
 
 #. module: account_mass_reconcile
-#: code:addons/account_mass_reconcile/models/mass_reconcile_history.py:0
+#: code:addons/account_mass_reconcile/models/mass_reconcile_history.py:64
 #: model_terms:ir.ui.view,arch_db:account_mass_reconcile.mass_reconcile_history_form
 #, python-format
 msgid "Reconciliations"
@@ -610,11 +568,6 @@ msgstr "Filtrer sur des partenaires"
 #: model:ir.model.fields,field_description:account_mass_reconcile.field_mass_reconcile_history__date
 msgid "Run date"
 msgstr "Date de lancement"
-
-#. module: account_mass_reconcile
-#: model:ir.model.fields,field_description:account_mass_reconcile.field_account_mass_reconcile__message_has_sms_error
-msgid "SMS Delivery error"
-msgstr ""
 
 #. module: account_mass_reconcile
 #: model:ir.model.fields,field_description:account_mass_reconcile.field_account_mass_reconcile_method__sequence
@@ -662,13 +615,13 @@ msgid "The sequence field is used to order the reconcile method"
 msgstr "La séquence détermine l'ordre des méthodes de lettrage"
 
 #. module: account_mass_reconcile
-#: code:addons/account_mass_reconcile/models/mass_reconcile.py:0
+#: code:addons/account_mass_reconcile/models/mass_reconcile.py:274
 #, python-format
 msgid "There is no history of reconciled items on the task: %s."
 msgstr "Il n'y a pas d'historique d'écritures lettrées sur la tâche: %s."
 
 #. module: account_mass_reconcile
-#: code:addons/account_mass_reconcile/models/mass_reconcile.py:0
+#: code:addons/account_mass_reconcile/models/mass_reconcile.py:251
 #, python-format
 msgid "There was an error during reconciliation : %s"
 msgstr ""
@@ -699,7 +652,7 @@ msgid "Unreconciled Items"
 msgstr ""
 
 #. module: account_mass_reconcile
-#: code:addons/account_mass_reconcile/models/mass_reconcile.py:0
+#: code:addons/account_mass_reconcile/models/mass_reconcile.py:300
 #, python-format
 msgid "Unreconciled items"
 msgstr ""
@@ -727,17 +680,50 @@ msgstr ""
 msgid "Write off allowed"
 msgstr "Écart autorisé"
 
-#~ msgid "account mass reconcile"
-#~ msgstr "Lettrage automatisé"
+#. module: account_mass_reconcile
+#: model:ir.model,name:account_mass_reconcile.model_account_mass_reconcile
+msgid "account mass reconcile"
+msgstr "Lettrage automatisé"
 
-#~ msgid "mass.reconcile.advanced"
-#~ msgstr "mass.reconcile.advanced"
+#. module: account_mass_reconcile
+#: model:ir.model,name:account_mass_reconcile.model_mass_reconcile_advanced
+msgid "mass.reconcile.advanced"
+msgstr "mass.reconcile.advanced"
 
-#~ msgid "mass.reconcile.advanced.ref"
-#~ msgstr "mass.reconcile.advanced.ref"
+#. module: account_mass_reconcile
+#: model:ir.model,name:account_mass_reconcile.model_mass_reconcile_advanced_ref
+msgid "mass.reconcile.advanced.ref"
+msgstr "mass.reconcile.advanced.ref"
 
-#~ msgid "reconcile method for account_mass_reconcile"
-#~ msgstr "Méthode de lettrage"
+#. module: account_mass_reconcile
+#: model:ir.model,name:account_mass_reconcile.model_mass_reconcile_base
+msgid "mass.reconcile.base"
+msgstr ""
+
+#. module: account_mass_reconcile
+#: model:ir.model,name:account_mass_reconcile.model_mass_reconcile_simple
+msgid "mass.reconcile.simple"
+msgstr ""
+
+#. module: account_mass_reconcile
+#: model:ir.model,name:account_mass_reconcile.model_mass_reconcile_simple_name
+msgid "mass.reconcile.simple.name"
+msgstr ""
+
+#. module: account_mass_reconcile
+#: model:ir.model,name:account_mass_reconcile.model_mass_reconcile_simple_partner
+msgid "mass.reconcile.simple.partner"
+msgstr ""
+
+#. module: account_mass_reconcile
+#: model:ir.model,name:account_mass_reconcile.model_mass_reconcile_simple_reference
+msgid "mass.reconcile.simple.reference"
+msgstr ""
+
+#. module: account_mass_reconcile
+#: model:ir.model,name:account_mass_reconcile.model_account_mass_reconcile_method
+msgid "reconcile method for account_mass_reconcile"
+msgstr "Méthode de lettrage"
 
 #~ msgid "7 Days"
 #~ msgstr "7 jours"

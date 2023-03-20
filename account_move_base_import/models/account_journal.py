@@ -3,14 +3,12 @@
 # Copyright 2013 Savoir-faire Linux
 # Copyright 2014 ACSONE SA/NV
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl.html)
-import os
 import sys
 import traceback
-
-from odoo import _, fields, models
-from odoo.exceptions import UserError, ValidationError
-
+import os
+from odoo import _, api, fields, models
 from ..parser.parser import new_move_parser
+from odoo.exceptions import UserError, ValidationError
 
 
 class AccountJournal(models.Model):
@@ -28,6 +26,7 @@ class AccountJournal(models.Model):
         [("generic_csvxls_so", "Generic .csv/.xls based on SO Name")],
         string="Type of import",
         default="generic_csvxls_so",
+        required=True,
         help="Choose here the method by which you want to import account "
         "moves for this journal.",
     )
@@ -59,7 +58,7 @@ class AccountJournal(models.Model):
 
     launch_import_completion = fields.Boolean(
         string="Launch completion after import",
-        help="Tick that box to automatically launch the completion "
+        help="Tic that box to automatically launch the completion "
         "on each imported file using this journal.",
     )
 
@@ -75,24 +74,14 @@ class AccountJournal(models.Model):
         "the refunds and one for the payments",
     )
 
-    commission_analytic_account_id = fields.Many2one(
-        comodel_name="account.analytic.account",
-        string="Commission Analytic Account",
-        help="Choose an analytic account to be used on the commission line.",
-    )
-    autovalidate_completed_move = fields.Boolean(
-        string="Validate fully completed moves",
-        help="Tick that box to automatically validate the journal entries "
-        "after the completion",
-    )
-
+    @api.multi
     def _prepare_counterpart_line(self, move, amount, date):
         if amount > 0.0:
-            account_id = self.default_account_id.id
+            account_id = self.default_debit_account_id.id
             credit = 0.0
             debit = amount
         else:
-            account_id = self.default_account_id.id
+            account_id = self.default_credit_account_id.id
             credit = -amount
             debit = 0.0
         counterpart_values = {
@@ -111,42 +100,41 @@ class AccountJournal(models.Model):
         }
         return counterpart_values
 
+    @api.multi
     def _create_counterpart(self, parser, move):
         move_line_obj = self.env["account.move.line"]
         refund = 0.0
         payment = 0.0
-        commission = 0.0
         transfer_lines = []
         for move_line in move.line_ids:
-            if (
-                move_line.account_id == self.commission_account_id
-                and move_line.already_completed
-            ):
-                commission -= move_line.debit
-            else:
-                refund -= move_line.debit
-                payment += move_line.credit
+            refund -= move_line.debit
+            payment += move_line.credit
         if self.split_counterpart:
             if refund:
                 transfer_lines.append(refund)
             if payment:
-                transfer_lines.append(payment + commission)
+                transfer_lines.append(payment)
         else:
-            total_amount = refund + payment + commission
+            total_amount = refund + payment
             if total_amount:
                 transfer_lines.append(total_amount)
-        counterpart_date = parser.get_move_vals().get("date") or fields.Date.today()
+        counterpart_date = (
+            parser.get_move_vals().get("date") or fields.Date.today()
+        )
         transfer_line_count = len(transfer_lines)
         check_move_validity = False
         for amount in transfer_lines:
             transfer_line_count -= 1
             if not transfer_line_count:
                 check_move_validity = True
-            vals = self._prepare_counterpart_line(move, amount, counterpart_date)
-            move_line_obj.with_context(check_move_validity=check_move_validity).create(
-                vals
+            vals = self._prepare_counterpart_line(
+                move, amount, counterpart_date
             )
+            move_line_obj.with_context(
+                check_move_validity=check_move_validity
+            ).create(vals)
 
+    @api.multi
     def _write_extra_move_lines(self, parser, move):
         """Insert extra lines after the main statement lines.
 
@@ -162,26 +150,26 @@ class AccountJournal(models.Model):
         """
         move_line_obj = self.env["account.move.line"]
         global_commission_amount = 0
-        commmission_field = parser.commission_field
-        if commmission_field:
-            for row in parser.result_row_list:
-                global_commission_amount += float(row.get(commmission_field, "0.0"))
-            # If commission amount is positive in field, inverse the sign
-            if parser.commission_sign == "+":
-                global_commission_amount = -global_commission_amount
+        for row in parser.result_row_list:
+            global_commission_amount += float(
+                row.get("commission_amount") or 0.0
+            )
         partner_id = self.partner_id.id
         # Commission line
         if global_commission_amount > 0.0:
             raise UserError(_("Commission amount should not be positive."))
         elif global_commission_amount < 0.0:
             if not self.commission_account_id:
-                raise UserError(_("No commission account is set on the journal."))
+                raise UserError(
+                    _("No commission account is set on the journal.")
+                )
             else:
                 commission_account_id = self.commission_account_id.id
                 comm_values = {
                     "name": _("Commission line"),
                     "date_maturity": (
-                        parser.get_move_vals().get("date") or fields.Date.today()
+                        parser.get_move_vals().get("date")
+                        or fields.Date.today()
                     ),
                     "debit": -global_commission_amount,
                     "partner_id": partner_id,
@@ -189,7 +177,10 @@ class AccountJournal(models.Model):
                     "account_id": commission_account_id,
                     "already_completed": True,
                 }
-                if self.currency_id and self.currency_id != self.company_id.currency_id:
+                if (
+                    self.currency_id
+                    and self.currency_id != self.company_id.currency_id
+                ):
                     # the commission we are reading is in the currency of the
                     # journal: use the amount in the amount_currency field, and
                     # set credit / debit to the value in company currency at
@@ -201,14 +192,11 @@ class AccountJournal(models.Model):
                         comm_values["debit"], company_currency
                     )
                     comm_values["currency_id"] = currency.id
-                if self.commission_analytic_account_id:
-                    comm_values.update(
-                        {"analytic_account_id": self.commission_analytic_account_id.id}
-                    )
                 move_line_obj.with_context(check_move_validity=False).create(
                     comm_values
                 )
 
+    @api.multi
     def write_logs_after_import(self, move, num_lines):
         """Write the log in the logger
 
@@ -240,7 +228,10 @@ class AccountJournal(models.Model):
         if not values.get("account_id", False):
             values["account_id"] = self.receivable_account_id.id
         account = self.env["account.account"].browse(values["account_id"])
-        if self.currency_id and self.currency_id != self.company_id.currency_id:
+        if (
+            self.currency_id
+            and self.currency_id != self.company_id.currency_id
+        ):
             # the debit and credit we are reading are in the currency of the
             # journal: use the amount in the amount_currency field, and set
             # credit / debit to the value in company currency at the date of
@@ -248,8 +239,12 @@ class AccountJournal(models.Model):
             currency = self.currency_id.with_context(date=move.date)
             company_currency = self.company_id.currency_id
             values["amount_currency"] = values["debit"] - values["credit"]
-            values["debit"] = currency.compute(values["debit"], company_currency)
-            values["credit"] = currency.compute(values["credit"], company_currency)
+            values["debit"] = currency.compute(
+                values["debit"], company_currency
+            )
+            values["credit"] = currency.compute(
+                values["credit"], company_currency
+            )
         if account.reconcile:
             values["amount_residual"] = values["debit"] - values["credit"]
         else:
@@ -260,16 +255,14 @@ class AccountJournal(models.Model):
                 "currency_id": self.currency_id.id,
                 "company_currency_id": self.company_id.currency_id.id,
                 "journal_id": self.id,
-                "account_id": account.id,
                 "move_id": move.id,
                 "date": move.date,
                 "balance": values["debit"] - values["credit"],
                 "amount_residual_currency": 0,
+                "user_type_id": account.user_type_id.id,
                 "reconciled": False,
             }
         )
-        if self.currency_id and self.currency_id == self.company_id.currency_id:
-            del values["currency_id"]
         values = move_line_obj._add_missing_default_values(values)
         return values
 
@@ -279,21 +272,11 @@ class AccountJournal(models.Model):
         """
         vals = {
             "journal_id": self.id,
-            "currency_id": self.currency_id.id or self.company_id.currency_id.id,
+            "currency_id": self.currency_id.id,
             "import_partner_id": self.partner_id.id,
         }
         vals.update(parser.get_move_vals())
         return vals
-
-    def _get_attachment_data(self, moves, file_stream, ftype):
-        attachment_data = {
-            "name": "statement file",
-            "datas": file_stream,
-            "store_fname": "{}.{}".format(fields.Date.today(), ftype),
-            "res_model": "account.move",
-            "res_id": moves[0].id,
-        }
-        return attachment_data
 
     def multi_move_import(self, file_stream, ftype="csv"):
         """Create multiple bank statements from values given by the parser for
@@ -305,7 +288,6 @@ class AccountJournal(models.Model):
         :return: list: list of ids of the created account.bank.statement
         """
         filename = self._context.get("file_name", None)
-        attachment_obj = self.env["ir.attachment"]
         if filename:
             (filename, __) = os.path.splitext(filename)
         parser = new_move_parser(self, ftype=ftype, move_ref=filename)
@@ -318,13 +300,10 @@ class AccountJournal(models.Model):
                 ftype=ftype,
             )
             res |= move
-        if res:
-            attachment_vals = self._get_attachment_data(res, file_stream, ftype)
-            if attachment_vals:
-                attachment_obj.create(attachment_vals)
         return res
 
-    def _move_import(self, parser, file_stream, result_row_list=None, ftype="csv"):
+    def _move_import(
+            self, parser, file_stream, result_row_list=None, ftype="csv"):
         """Create a bank statement with the given profile and parser. It will
         fulfill the bank statement with the values of the file provided, but
         will not complete data (like finding the partner, or the right
@@ -344,7 +323,9 @@ class AccountJournal(models.Model):
         # Check all key are present in account.bank.statement.line!!
         if not result_row_list:
             raise UserError(_("Nothing to import: " "The file is empty"))
-        parsed_cols = list(parser.get_move_line_vals(result_row_list[0]).keys())
+        parsed_cols = list(
+            parser.get_move_line_vals(result_row_list[0]).keys()
+        )
         for col in parsed_cols:
             if col not in move_line_obj._fields:
                 raise UserError(
@@ -363,19 +344,21 @@ class AccountJournal(models.Model):
                 parser_vals = parser.get_move_line_vals(line)
                 values = self.prepare_move_line_vals(parser_vals, move)
                 move_store.append(values)
-            move_line_obj.with_context(check_move_validity=False).create(move_store)
+            move_line_obj.with_context(check_move_validity=False).create(
+                move_store
+            )
             self._write_extra_move_lines(parser, move)
             if self.create_counterpart:
                 self._create_counterpart(parser, move)
             # Check if move is balanced
-            move._check_balanced()
+            move.assert_balanced()
             # Computed total amount of the move
-            # move._amount_compute()
+            move._amount_compute()
             # Attach data to the move
             attachment_data = {
                 "name": "statement file",
                 "datas": file_stream,
-                "store_fname": "{}.{}".format(fields.Date.today(), ftype),
+                "datas_fname": "%s.%s" % (fields.Date.today(), ftype),
                 "res_model": "account.move",
                 "res_id": move.id,
             }
@@ -390,12 +373,16 @@ class AccountJournal(models.Model):
             raise
         except Exception:
             error_type, error_value, trbk = sys.exc_info()
-            st = "Error: {}\nDescription: {}\nTraceback:".format(
+            st = "Error: %s\nDescription: %s\nTraceback:" % (
                 error_type.__name__,
                 error_value,
             )
             st += "".join(traceback.format_tb(trbk, 30))
             raise ValidationError(
-                _("Statement import error " "The statement cannot be created: %s") % st
+                _(
+                    "Statement import error "
+                    "The statement cannot be created: %s"
+                )
+                % st
             )
         return move

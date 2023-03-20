@@ -5,36 +5,35 @@
 import logging
 from itertools import product
 
-from odoo import api, models, registry
+from odoo import models, api
 from odoo.tools.translate import _
 
 _logger = logging.getLogger(__name__)
 
 
 class MassReconcileAdvanced(models.AbstractModel):
-    _name = "mass.reconcile.advanced"
-    _inherit = "mass.reconcile.base"
-    _description = "Mass Reconcile Advanced"
+    _name = 'mass.reconcile.advanced'
+    _inherit = 'mass.reconcile.base'
 
     def _query_debit(self):
-        """Select all move (debit>0) as candidate."""
+        """Select all move (debit>0) as candidate. """
         select = self._select_query()
         sql_from = self._from_query()
         where, params = self._where_query()
         where += " AND account_move_line.debit > 0 "
         where2, params2 = self._get_filter()
-        query = " ".join((select, sql_from, where, where2))
+        query = ' '.join((select, sql_from, where, where2))
         self.env.cr.execute(query, params + params2)
         return self.env.cr.dictfetchall()
 
     def _query_credit(self):
-        """Select all move (credit>0) as candidate."""
+        """Select all move (credit>0) as candidate. """
         select = self._select_query()
         sql_from = self._from_query()
         where, params = self._where_query()
         where += " AND account_move_line.credit > 0 "
         where2, params2 = self._get_filter()
-        query = " ".join((select, sql_from, where, where2))
+        query = ' '.join((select, sql_from, where, where2))
         self.env.cr.execute(query, params + params2)
         return self.env.cr.dictfetchall()
 
@@ -137,7 +136,7 @@ class MassReconcileAdvanced(models.AbstractModel):
 
     @classmethod
     def _compare_matcher_values(cls, key, values, opposite_values):
-        """Compare every values from a matcher vs an opposite matcher
+        """ Compare every values from a matcher vs an opposite matcher
         and return True if it matches
         """
         for value, ovalue in product(values, opposite_values):
@@ -154,18 +153,18 @@ class MassReconcileAdvanced(models.AbstractModel):
         """
         mkey, mvalue = matcher
         omkey, omvalue = opposite_matcher
-        assert mkey == omkey, _(
-            "A matcher %s is compared with a matcher %s, the _matchers and "
-            "_opposite_matchers are probably wrong"
-        ) % (mkey, omkey)
+        assert mkey == omkey, \
+            (_("A matcher %s is compared with a matcher %s, the _matchers and "
+               "_opposite_matchers are probably wrong") % (mkey, omkey))
         if not isinstance(mvalue, (list, tuple)):
-            mvalue = (mvalue,)
+            mvalue = mvalue,
         if not isinstance(omvalue, (list, tuple)):
-            omvalue = (omvalue,)
-        return MassReconcileAdvanced._compare_matcher_values(mkey, mvalue, omvalue)
+            omvalue = omvalue,
+        return MassReconcileAdvanced._compare_matcher_values(mkey, mvalue,
+                                                             omvalue)
 
     def _compare_opposite(self, move_line, opposite_move_line, matchers):
-        """Iterate over the matchers of the move lines vs opposite move lines
+        """ Iterate over the matchers of the move lines vs opposite move lines
         and if they all match, return True.
 
         If all the matchers match for a move line and an opposite move line,
@@ -198,14 +197,10 @@ class MassReconcileAdvanced(models.AbstractModel):
         :return: list of matching lines
         """
         matchers = self._matchers(move_line)
-        return [
-            op
-            for op in opposite_move_lines
-            if self._compare_opposite(move_line, op, matchers)
-        ]
+        return [op for op in opposite_move_lines if
+                self._compare_opposite(move_line, op, matchers)]
 
     def _action_rec(self):
-        self.flush()
         credit_lines = self._query_credit()
         debit_lines = self._query_debit()
         result = self._rec_auto_lines_advanced(credit_lines, debit_lines)
@@ -219,99 +214,58 @@ class MassReconcileAdvanced(models.AbstractModel):
         """
         return False
 
-    def _rec_group(self, reconcile_groups, lines_by_id):
-        reconciled_ids = []
-        for group_count, reconcile_group_ids in enumerate(reconcile_groups, start=1):
-
-            _logger.debug(
-                "Reconciling group %d/%d with ids %s",
-                group_count,
-                len(reconcile_groups),
-                reconcile_group_ids,
-            )
-            group_lines = [lines_by_id[lid] for lid in reconcile_group_ids]
-            reconciled, full = self._reconcile_lines(group_lines, allow_partial=True)
-            if reconciled and full:
-                reconciled_ids += reconcile_group_ids
-        return reconciled_ids
-
-    def _rec_group_by_chunk(self, reconcile_groups, lines_by_id, chunk_size):
-        """Commit after each chunk
-
-        :param dict reconcile_grous: all groups to reconcile, will be splitted
-        by chunk
-        :param list lines_by_id: list of dict of move lines values,
-          the move lines we want to search for
-        :return: list of reconciled lines
-        """
-        reconciled_ids = []
-
-        _logger.info("Reconciling by chunk of %d", chunk_size)
-
-        # Copy and commit current transient model before creating a new cursor
-        # This is required to avoid CacheMiss when using data from `self`
-        # which is created during current transaction.
-        with api.Environment.manage():
-            with registry(self.env.cr.dbname).cursor() as new_cr:
-                new_env = api.Environment(new_cr, self.env.uid, self.env.context)
-                self_env = self.with_env(new_env)
-                rec = self_env.create(self.copy_data())
-        for i in range(0, len(reconcile_groups), chunk_size):
-            chunk = reconcile_groups[i : i + chunk_size]
-            _logger.debug("Reconcile group chunk %s", chunk)
-            try:
-                with api.Environment.manage():
-                    with registry(self.env.cr.dbname).cursor() as new_cr:
-                        new_env = api.Environment(
-                            new_cr, self.env.uid, self.env.context
-                        )
-                        # Re-use the commited transient we just commited
-                        self_env = self.with_env(new_env).browse(rec.id)
-                        reconciled_ids += self_env._rec_group(chunk, lines_by_id)
-            except Exception as e:
-                msg = "Reconciliation failed for group chunk %s with error:\n%s"
-                _logger.exception(msg, chunk, e)
-        return reconciled_ids
-
+    @api.multi
     def _rec_auto_lines_advanced(self, credit_lines, debit_lines):
-        """Advanced reconciliation main loop"""
-        # pylint: disable=invalid-commit
+        """ Advanced reconciliation main loop """
         reconciled_ids = []
         for rec in self:
-            commit_every = rec.account_id.company_id.reconciliation_commit_every
             reconcile_groups = []
+            ctx = self.env.context.copy()
+            ctx['commit_every'] = (
+                rec.account_id.company_id.reconciliation_commit_every
+            )
             _logger.info("%d credit lines to reconcile", len(credit_lines))
             for idx, credit_line in enumerate(credit_lines, start=1):
                 if idx % 50 == 0:
-                    _logger.info(
-                        "... %d/%d credit lines inspected ...", idx, len(credit_lines)
-                    )
+                    _logger.info("... %d/%d credit lines inspected ...", idx,
+                                 len(credit_lines))
                 if self._skip_line(credit_line):
                     continue
-                opposite_lines = self._search_opposites(credit_line, debit_lines)
+                opposite_lines = self._search_opposites(credit_line,
+                                                        debit_lines)
                 if not opposite_lines:
                     continue
-                opposite_ids = [opp["id"] for opp in opposite_lines]
-                line_ids = opposite_ids + [credit_line["id"]]
+                opposite_ids = [l['id'] for l in opposite_lines]
+                line_ids = opposite_ids + [credit_line['id']]
                 for group in reconcile_groups:
                     if any([lid in group for lid in opposite_ids]):
-                        _logger.debug(
-                            "New lines %s matched with an existing " "group %s",
-                            line_ids,
-                            group,
-                        )
+                        _logger.debug("New lines %s matched with an existing "
+                                      "group %s", line_ids, group)
                         group.update(line_ids)
                         break
                 else:
                     _logger.debug("New group of lines matched %s", line_ids)
                     reconcile_groups.append(set(line_ids))
-            lines_by_id = {line["id"]: line for line in credit_lines + debit_lines}
-            _logger.info("Found %d groups to reconcile", len(reconcile_groups))
-            if commit_every:
-                reconciled_ids = self._rec_group_by_chunk(
-                    reconcile_groups, lines_by_id, commit_every
-                )
-            else:
-                reconciled_ids = self._rec_group(reconcile_groups, lines_by_id)
+            lines_by_id = dict([(l['id'], l)
+                                for l in credit_lines + debit_lines])
+            _logger.info("Found %d groups to reconcile",
+                         len(reconcile_groups))
+            for group_count, reconcile_group_ids \
+                    in enumerate(reconcile_groups, start=1):
+                _logger.debug("Reconciling group %d/%d with ids %s",
+                              group_count, len(reconcile_groups),
+                              reconcile_group_ids)
+                group_lines = [lines_by_id[lid]
+                               for lid in reconcile_group_ids]
+                reconciled, full = self._reconcile_lines(group_lines,
+                                                         allow_partial=True)
+                if reconciled and full:
+                    reconciled_ids += reconcile_group_ids
+
+                if (ctx['commit_every'] and
+                        group_count % ctx['commit_every'] == 0):
+                    self.env.cr.commit()
+                    _logger.info("Commit the reconciliations after %d groups",
+                                 group_count)
             _logger.info("Reconciliation is over")
         return reconciled_ids

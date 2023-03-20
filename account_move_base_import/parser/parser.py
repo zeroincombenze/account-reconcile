@@ -5,8 +5,7 @@
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl.html)
 import base64
 import csv
-
-from odoo import _, fields
+from openerp import _, fields
 
 
 def UnicodeDictReader(utf8_data, **kwargs):
@@ -14,14 +13,16 @@ def UnicodeDictReader(utf8_data, **kwargs):
     pos = utf8_data.tell()
     sample_data = utf8_data.read(2048)
     utf8_data.seek(pos)
-    if not kwargs.get("dialect"):
-        dialect = sniffer.sniff(sample_data, delimiters=",;\t")
-        del kwargs["dialect"]
+    if not kwargs.get('dialect'):
+        dialect = sniffer.sniff(sample_data, delimiters=',;\t')
+        del kwargs['dialect']
     else:
-        dialect = kwargs.pop("dialect")
+        dialect = kwargs.pop('dialect')
     csv_reader = csv.DictReader(utf8_data, dialect=dialect, **kwargs)
     for row in csv_reader:
-        yield {str(key or ""): str(value or "") for key, value in row.items()}
+        yield dict([(str(key or ''),
+                     str(value or ''))
+                    for key, value in row.items()])
 
 
 class AccountMoveImportParser(object):
@@ -47,8 +48,6 @@ class AccountMoveImportParser(object):
         self.move_name = None
         self.move_ref = None
         self.support_multi_moves = None
-        self.commission_field = None
-        self.commission_sign = "+"
 
     @classmethod
     def parser_for(cls, parser_name):
@@ -109,9 +108,9 @@ class AccountMoveImportParser(object):
         :return: dict of vals that represent additional infos for the statement
         """
         return {
-            "name": self.move_name or "/",
-            "date": self.move_date or fields.Datetime.now(),
-            "ref": self.move_ref or "/",
+            'name': self.move_name or '/',
+            'date': self.move_date or fields.Datetime.now(),
+            'ref': self.move_ref or '/'
         }
 
     def get_move_line_vals(self, line, *args, **kwargs):
@@ -145,7 +144,7 @@ class AccountMoveImportParser(object):
         if filebuffer:
             self.filebuffer = filebuffer
         else:
-            raise Exception(_("No buffer file given."))
+            raise Exception(_('No buffer file given.'))
         self._format(*args, **kwargs)
         self._pre(*args, **kwargs)
         if self.support_multi_moves:
@@ -185,9 +184,8 @@ def itersubclasses(cls, _seen=None):
     ['type', ...'tuple', ...]
     """
     if not isinstance(cls, type):
-        raise TypeError(
-            "itersubclasses must be called with " "new-style classes, not %.100r" % cls
-        )
+        raise TypeError('itersubclasses must be called with '
+                        'new-style classes, not %.100r' % cls)
     if _seen is None:
         _seen = set()
     try:

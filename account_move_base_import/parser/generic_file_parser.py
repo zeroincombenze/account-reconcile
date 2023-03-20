@@ -4,10 +4,8 @@
 # Copyright 2014 ACSONE SA/NV
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl.html)
 import datetime
-
-from odoo.tools import ustr
-
 from .file_parser import FileParser, float_or_zero
+from odoo.tools import ustr
 
 
 class GenericFileParser(FileParser):
@@ -17,24 +15,25 @@ class GenericFileParser(FileParser):
     file.
     """
 
-    def __init__(self, journal, ftype="csv", **kwargs):
+    def __init__(self, journal, ftype='csv', **kwargs):
         conversion_dict = {
-            "label": ustr,
-            "date": datetime.datetime,
-            "amount": float_or_zero,
+            'label': ustr,
+            'date': datetime.datetime,
+            'amount': float_or_zero,
         }
         # set self.env for later ORM searches
         self.env = journal.env
-        super().__init__(journal, ftype=ftype, extra_fields=conversion_dict, **kwargs)
-        self.commission_field = "commission_amount"
-        self.commission_sign = "-"
+        super().__init__(
+            journal, ftype=ftype,
+            extra_fields=conversion_dict,
+            **kwargs)
 
     @classmethod
     def parser_for(cls, parser_name):
         """Used by the new_bank_statement_parser class factory. Return true if
         the providen name is generic_csvxls_so
         """
-        return parser_name == "generic_csvxls_so"
+        return parser_name == 'generic_csvxls_so'
 
     def get_move_line_vals(self, line, *args, **kwargs):
         """
@@ -53,27 +52,27 @@ class GenericFileParser(FileParser):
                     'debit':value
                 }
         """
-        account_obj = self.env["account.account"]
-        partner_obj = self.env["res.partner"]
+        account_obj = self.env['account.account']
+        partner_obj = self.env['res.partner']
         account_id = False
         partner_id = False
 
-        if line.get("account"):
-            accounts = account_obj.search([("code", "=", line["account"])])
+        if line.get('account'):
+            accounts = account_obj.search([('code', '=', line['account'])])
             if len(accounts) == 1:
                 account_id = accounts[0].id
 
-        if line.get("partner"):
-            partners = partner_obj.search([("name", "=", line["partner"])])
+        if line.get('partner'):
+            partners = partner_obj.search([('name', '=', line['partner'])])
             if len(partners) == 1:
                 partner_id = partners[0].id
 
-        amount = line.get("amount", 0.0)
+        amount = line.get('amount', 0.0)
         return {
-            "name": line.get("label", "/"),
-            "date_maturity": line.get("date", datetime.datetime.now().date()),
-            "credit": amount > 0.0 and amount or 0.0,
-            "debit": amount < 0.0 and -amount or 0.0,
-            "account_id": account_id,
-            "partner_id": partner_id,
+            'name': line.get('label', '/'),
+            'date_maturity': line.get('date', datetime.datetime.now().date()),
+            'credit': amount > 0.0 and amount or 0.0,
+            'debit': amount < 0.0 and -amount or 0.0,
+            'account_id': account_id,
+            'partner_id': partner_id,
         }

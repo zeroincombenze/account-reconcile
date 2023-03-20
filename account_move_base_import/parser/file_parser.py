@@ -4,8 +4,8 @@
 # Copyright 2014 ACSONE SA/NV
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl.html)
 import datetime
-import logging
 import tempfile
+import logging
 
 from odoo import _
 from odoo.exceptions import UserError
@@ -22,7 +22,7 @@ except (ImportError, IOError) as err:
 
 
 def float_or_zero(val):
-    """Conversion function used to manage
+    """ Conversion function used to manage
     empty string into float usecase"""
     return float(val) if val else 0.0
 
@@ -33,24 +33,23 @@ class FileParser(AccountMoveImportParser):
     """
 
     def __init__(
-        self,
-        journal,
-        ftype="csv",
-        extra_fields=None,
-        header=None,
-        dialect=None,
-        move_ref=None,
-        **kwargs
-    ):
+            self,
+            journal,
+            ftype="csv",
+            extra_fields=None,
+            header=None,
+            dialect=None,
+            move_ref=None,
+            **kwargs):
         """
-        :param char: parse_name: The name of the parser
-        :param char: ftype: extension of the file (could be csv, xls or
-          xlsx)
-        :param dict: extra_fields: extra fields to put into the conversion
-          dict. In the format {fieldname: fieldtype}
-        :param list: header : specify header fields if the csv file has no
-          header
-        """
+            :param char: parse_name: The name of the parser
+            :param char: ftype: extension of the file (could be csv, xls or
+              xlsx)
+            :param dict: extra_fields: extra fields to put into the conversion
+              dict. In the format {fieldname: fieldtype}
+            :param list: header : specify header fields if the csv file has no
+              header
+            """
         super().__init__(journal, **kwargs)
         if ftype in ("csv", "xls", "xlsx"):
             self.ftype = ftype[0:3]
@@ -91,7 +90,7 @@ class FileParser(AccountMoveImportParser):
                 return False
             else:
                 self.result_row_list = self.parsed_file[
-                    self.current_line : self.current_line + 1
+                    self.current_line: self.current_line + 1
                 ]
                 self.current_line += 1
                 return True
@@ -123,7 +122,7 @@ class FileParser(AccountMoveImportParser):
         csv_file = tempfile.NamedTemporaryFile()
         csv_file.write(self.filebuffer)
         csv_file.flush()
-        with open(csv_file.name, "r") as fobj:
+        with open(csv_file.name, "rU") as fobj:
             reader = UnicodeDictReader(
                 fobj, fieldnames=self.fieldnames, dialect=self.dialect
             )
@@ -153,7 +152,9 @@ class FileParser(AccountMoveImportParser):
                 if conversion_rules[rule] == datetime.datetime:
                     try:
                         date_string = line[rule].split(" ")[0]
-                        line[rule] = datetime.datetime.strptime(date_string, "%Y-%m-%d")
+                        line[rule] = datetime.datetime.strptime(
+                            date_string, "%Y-%m-%d"
+                        )
                     except ValueError as err:
                         raise UserError(
                             _(
@@ -195,7 +196,9 @@ class FileParser(AccountMoveImportParser):
             for rule in conversion_rules:
                 if conversion_rules[rule] == datetime.datetime:
                     try:
-                        t_tuple = xlrd.xldate_as_tuple(line[rule], self._datemode)
+                        t_tuple = xlrd.xldate_as_tuple(
+                            line[rule], self._datemode
+                        )
                         line[rule] = datetime.datetime(*t_tuple)
                     except Exception as err:
                         raise UserError(
